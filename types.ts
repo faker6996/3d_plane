@@ -1,7 +1,16 @@
+
 export enum GameState {
   MENU = 'MENU',
   PLAYING = 'PLAYING',
-  GAME_OVER = 'GAME_OVER'
+  PAUSED = 'PAUSED',
+  GAME_OVER = 'GAME_OVER',
+  LEVEL_COMPLETE = 'LEVEL_COMPLETE'
+}
+
+export enum WeaponType {
+  BLASTER = 'BLASTER', 
+  SPREAD = 'SPREAD',   
+  PLASMA = 'PLASMA'    
 }
 
 export interface Vector3 {
@@ -32,11 +41,19 @@ export interface Boss extends Entity {
 
 export interface Bullet extends Entity {
   owner: 'player' | 'enemy';
+  damage?: number;
+  bulletType?: WeaponType;
 }
 
-export interface Explosion {
-  id: string;
-  position: Vector3;
-  scale: number;
-  life: number; // 0 to 1
+export interface LevelConfig {
+  id: number;
+  name: string;
+  themeColor: string; // Main color for UI/Lights
+  fogColor: string;
+  gridColor: string;
+  enemySpeedMultiplier: number;
+  spawnRate: number; // Lower is faster
+  bossHp: number;
+  bossScoreThreshold: number;
+  sceneryType: 'cubes' | 'asteroids' | 'alien';
 }
