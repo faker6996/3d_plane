@@ -10,8 +10,9 @@ import { GameState, Enemy, Bullet, Boss, Vector3 } from '../types';
 
 // --- Constants ---
 const PLAYER_SPEED = 0.18;
-const PLAYER_LIMIT_X = 9;
-const PLAYER_LIMIT_Y = 5;
+// Adjusted limits for wider FOV/Camera distance
+const PLAYER_LIMIT_X = 12; 
+const PLAYER_LIMIT_Y = 7;
 const BULLET_SPEED = 1.2;
 const ENEMY_SPEED = 0.25;
 const ENEMY_BULLET_SPEED = 0.4;
@@ -337,68 +338,74 @@ const GameScene: React.FC<GameLogicProps> = ({
     }
 
     // Boss Logic
-    if (bossRef.current && bossModelRef.current) {
-       const boss = bossRef.current;
-       
-       // Movement
-       if (boss.state === 'entering') {
-          boss.position.z += 0.3; // Faster entry
-          // Stop much further back to avoid blocking view (-35 instead of -15)
-          if (boss.position.z >= -35) boss.state = 'fighting';
-       } else if (boss.state === 'fighting') {
-          // Hover and strafe
-          boss.position.x = Math.sin(time * 0.5) * 12; // Wider movement
-          boss.position.y = Math.cos(time * 0.7) * 3;
-          
-          // Shooting
-          boss.attackCooldown -= delta;
-          if (boss.attackCooldown <= 0) {
-             const startPos = { ...boss.position };
-             const dirs = [-0.3, -0.1, 0.1, 0.3]; // 4 bullets
-             dirs.forEach(d => {
-                const targetDir = new THREE.Vector3(playerPos.current.x, playerPos.current.y, playerPos.current.z)
-                                    .sub(new THREE.Vector3(startPos.x, startPos.y, startPos.z))
-                                    .normalize();
-                targetDir.x += d; 
+    if (bossModelRef.current) {
+       if (!bossRef.current) {
+         // CRITICAL FIX: Hide boss when not spawned to prevent it blocking the screen
+         bossModelRef.current.visible = false;
+       } else {
+         bossModelRef.current.visible = true;
+         const boss = bossRef.current;
+         
+         // Movement
+         if (boss.state === 'entering') {
+            boss.position.z += 0.3; // Faster entry
+            // Stop much further back to avoid blocking view (-35 instead of -15)
+            if (boss.position.z >= -35) boss.state = 'fighting';
+         } else if (boss.state === 'fighting') {
+            // Hover and strafe
+            boss.position.x = Math.sin(time * 0.5) * 12; // Wider movement
+            boss.position.y = Math.cos(time * 0.7) * 3;
+            
+            // Shooting
+            boss.attackCooldown -= delta;
+            if (boss.attackCooldown <= 0) {
+               const startPos = { ...boss.position };
+               const dirs = [-0.3, -0.1, 0.1, 0.3]; // 4 bullets
+               dirs.forEach(d => {
+                  const targetDir = new THREE.Vector3(playerPos.current.x, playerPos.current.y, playerPos.current.z)
+                                      .sub(new THREE.Vector3(startPos.x, startPos.y, startPos.z))
+                                      .normalize();
+                  targetDir.x += d; 
+                  
+                  enemyBulletsRef.current.push({
+                     id: Math.random().toString(),
+                     position: { x: startPos.x + d*10, y: startPos.y - 1, z: startPos.z + 4 },
+                     velocity: { x: targetDir.x * ENEMY_BULLET_SPEED, y: targetDir.y * ENEMY_BULLET_SPEED, z: ENEMY_BULLET_SPEED },
+                     active: true,
+                     owner: 'enemy'
+                  });
+               });
+               
+               boss.attackCooldown = 1.2; 
+            }
+         }
+
+         bossModelRef.current.position.set(boss.position.x, boss.position.y, boss.position.z);
+         bossModelRef.current.rotation.z = Math.sin(time) * 0.1;
+         bossModelRef.current.rotation.y = Math.sin(time * 0.5) * 0.1; // Add slight yaw
+
+         // Collision: Player Bullets vs Boss
+         for (let j = bulletsRef.current.length - 1; j >= 0; j--) {
+            const b = bulletsRef.current[j];
+            // Adjust hit box for new position/scale
+            if (Math.abs(b.position.x - boss.position.x) < 5 && 
+                Math.abs(b.position.y - boss.position.y) < 3 && 
+                Math.abs(b.position.z - boss.position.z) < 3) {
                 
-                enemyBulletsRef.current.push({
-                   id: Math.random().toString(),
-                   position: { x: startPos.x + d*10, y: startPos.y - 1, z: startPos.z + 4 },
-                   velocity: { x: targetDir.x * ENEMY_BULLET_SPEED, y: targetDir.y * ENEMY_BULLET_SPEED, z: ENEMY_BULLET_SPEED },
-                   active: true,
-                   owner: 'enemy'
-                });
-             });
-             
-             boss.attackCooldown = 1.2; 
-          }
-       }
-
-       bossModelRef.current.position.set(boss.position.x, boss.position.y, boss.position.z);
-       bossModelRef.current.rotation.z = Math.sin(time) * 0.1;
-       bossModelRef.current.rotation.y = Math.sin(time * 0.5) * 0.1; // Add slight yaw
-
-       // Collision: Player Bullets vs Boss
-       for (let j = bulletsRef.current.length - 1; j >= 0; j--) {
-          const b = bulletsRef.current[j];
-          // Adjust hit box for new position/scale
-          if (Math.abs(b.position.x - boss.position.x) < 5 && 
-              Math.abs(b.position.y - boss.position.y) < 3 && 
-              Math.abs(b.position.z - boss.position.z) < 3) {
-              
-              b.active = false;
-              bulletsRef.current.splice(j, 1);
-              boss.health -= 2; 
-              setBossHealth(boss.health);
-              
-              if (boss.health <= 0) {
-                 currentScore.current += 1000;
-                 setScore(s => s + 1000);
-                 bossRef.current = null;
-                 setBossHealth(0);
-              }
-          }
-       }
+                b.active = false;
+                bulletsRef.current.splice(j, 1);
+                boss.health -= 2; 
+                setBossHealth(boss.health);
+                
+                if (boss.health <= 0) {
+                   currentScore.current += 1000;
+                   setScore(s => s + 1000);
+                   bossRef.current = null;
+                   setBossHealth(0);
+                }
+            }
+         }
+      }
     }
 
     // Enemies
@@ -499,7 +506,8 @@ const GameScene: React.FC<GameLogicProps> = ({
 
   return (
     <>
-       <PerspectiveCamera makeDefault position={[0, 0, 10]} fov={50} />
+       {/* Adjusted Camera: Wider FOV and further back */}
+       <PerspectiveCamera makeDefault position={[0, 0, 12]} fov={60} />
        <CameraShake ref={shakeRef} maxPitch={0.05} maxRoll={0.05} maxYaw={0.05} intensity={0} decay={0.8} decayRate={0.02} />
        
        <color attach="background" args={['#020617']} />
