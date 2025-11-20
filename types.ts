@@ -26,6 +26,10 @@ export interface Entity {
   active: boolean;
 }
 
+export interface PowerUp extends Entity {
+  rotation: { x: number; y: number };
+}
+
 export interface Enemy extends Entity {
   type: 'fighter' | 'drone';
   health: number;

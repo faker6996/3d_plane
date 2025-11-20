@@ -13,6 +13,7 @@ export default function App() {
   const [maxBossHealth, setMaxBossHealth] = useState(100);
   const [mouseClicked, setMouseClicked] = useState(false);
   const [currentWeapon, setCurrentWeapon] = useState<WeaponType>(WeaponType.BLASTER);
+  const [weaponLevel, setWeaponLevel] = useState(1); // New State
   const [currentLevelIndex, setCurrentLevelIndex] = useState(0); // 0 = Level 1
 
   const handleStart = () => {
@@ -20,6 +21,7 @@ export default function App() {
     setLives(3);
     setBossHealth(0);
     setCurrentLevelIndex(0); // Reset to Level 1
+    setWeaponLevel(1); // Reset weapon level
     setGameState(GameState.PLAYING);
   };
 
@@ -87,6 +89,7 @@ export default function App() {
         bossHealth={bossHealth}
         maxBossHealth={maxBossHealth}
         currentWeapon={currentWeapon}
+        weaponLevel={weaponLevel}
         levelConfig={LEVELS[Math.min(currentLevelIndex, LEVELS.length - 1)]}
         onStart={handleStart} 
         onRestart={handleRestart} 
@@ -102,6 +105,8 @@ export default function App() {
         setMaxBossHealth={setMaxBossHealth}
         mouseClicked={mouseClicked}
         currentWeapon={currentWeapon}
+        weaponLevel={weaponLevel}
+        setWeaponLevel={setWeaponLevel}
         currentLevelIndex={currentLevelIndex}
       />
     </div>

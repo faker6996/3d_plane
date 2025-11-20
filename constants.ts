@@ -8,8 +8,14 @@ export const PLAYER_LIMIT_Y = 7;
 export const ENEMY_SPEED = 0.25;
 export const ENEMY_BULLET_SPEED = 0.4;
 
+export const POWERUP_SPEED = 0.3;
+export const POWERUP_DROP_RATE = 0.2; // 20% chance
+export const MAX_WEAPON_LEVEL = 5;
+export const DAMAGE_MULTIPLIER_PER_LEVEL = 0.5; // +50% damage per level
+
 export const MAX_BULLETS = 200;
 export const MAX_ENEMIES = 50;
+export const MAX_POWERUPS = 20;
 
 export const WEAPONS = {
   [WeaponType.BLASTER]: { speed: 1.2, cooldown: 0.15, damage: 1 },

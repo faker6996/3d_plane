@@ -6,12 +6,13 @@ import {
 } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette, Noise } from '@react-three/postprocessing';
 import * as THREE from 'three';
-import { GameState, Enemy, Bullet, Boss, Vector3, WeaponType, Entity } from '../types';
+import { GameState, Enemy, Bullet, Boss, Vector3, WeaponType, Entity, PowerUp } from '../types';
 import { 
   PLAYER_SPEED, PLAYER_LIMIT_X, PLAYER_LIMIT_Y, 
   ENEMY_SPEED,
-  ENEMY_BULLET_SPEED, 
-  MAX_BULLETS, MAX_ENEMIES, WEAPONS, LEVELS 
+  ENEMY_BULLET_SPEED,
+  POWERUP_SPEED, POWERUP_DROP_RATE, MAX_WEAPON_LEVEL, DAMAGE_MULTIPLIER_PER_LEVEL,
+  MAX_BULLETS, MAX_ENEMIES, MAX_POWERUPS, WEAPONS, LEVELS 
 } from '../constants';
 import { PlayerShip } from './PlayerShip';
 import { BossShip } from './BossShip';
@@ -32,16 +33,18 @@ interface GameLogicProps {
   setMaxBossHealth: React.Dispatch<React.SetStateAction<number>>;
   mouseClicked: boolean;
   currentWeapon: WeaponType;
+  weaponLevel: number;
+  setWeaponLevel: React.Dispatch<React.SetStateAction<number>>;
   currentLevelIndex: number;
 }
 
 const GameScene: React.FC<GameLogicProps> = ({ 
-  gameState, setGameState, setScore, setLives, setBossHealth, setMaxBossHealth, mouseClicked, currentWeapon, currentLevelIndex
+  gameState, setGameState, setScore, setLives, setBossHealth, setMaxBossHealth, 
+  mouseClicked, currentWeapon, weaponLevel, setWeaponLevel, currentLevelIndex
 }) => {
   const { viewport } = useThree();
   
   // Get Current Level Config
-  // Ensure level index is within bounds
   const safeLevelIndex = Math.min(currentLevelIndex, LEVELS.length - 1);
   const levelConfig = LEVELS[safeLevelIndex];
 
@@ -54,6 +57,7 @@ const GameScene: React.FC<GameLogicProps> = ({
   
   const enemyBulletsRef = useRef<Bullet[]>([]);
   const enemiesRef = useRef<Enemy[]>([]);
+  const powerUpsRef = useRef<PowerUp[]>([]); // PowerUp State
   const bossRef = useRef<Boss | null>(null);
   const currentScore = useRef(0);
   
@@ -65,6 +69,8 @@ const GameScene: React.FC<GameLogicProps> = ({
   const enemyBulletMeshRef = useRef<THREE.InstancedMesh>(null);
   const enemyFighterRef = useRef<THREE.InstancedMesh>(null);
   const enemyDroneRef = useRef<THREE.InstancedMesh>(null);
+  const powerUpMeshRef = useRef<THREE.InstancedMesh>(null); // PowerUp Mesh
+
   const shipRef = useRef<THREE.Group>(null);
   const bossModelRef = useRef<THREE.Group>(null);
   const shakeRef = useRef<any>(null);
@@ -74,16 +80,14 @@ const GameScene: React.FC<GameLogicProps> = ({
 
   // Reset Logic
   useEffect(() => {
-    // Reset when starting ANY level fresh
     if (gameState === GameState.PLAYING) {
-      // We check if boss is null to assume it's a fresh start of a level
       if (!bossRef.current) {
           blasterBulletsRef.current = [];
           spreadBulletsRef.current = [];
           plasmaBulletsRef.current = [];
           enemyBulletsRef.current = [];
           enemiesRef.current = [];
-          // Player position reset
+          powerUpsRef.current = [];
           playerPos.current = { x: 0, y: -2, z: 0 };
       }
     }
@@ -116,6 +120,10 @@ const GameScene: React.FC<GameLogicProps> = ({
 
     // --- 2. Spawning & Shooting ---
     const weaponConfig = WEAPONS[currentWeapon];
+    
+    // Calculate Damage based on Weapon Level
+    const damageMultiplier = 1 + ((weaponLevel - 1) * DAMAGE_MULTIPLIER_PER_LEVEL);
+    const finalDamage = weaponConfig.damage * damageMultiplier;
 
     if (mouseClicked && time - lastShotTime.current > weaponConfig.cooldown) {
        lastShotTime.current = time;
@@ -126,7 +134,7 @@ const GameScene: React.FC<GameLogicProps> = ({
             velocity: { x: 0, y: 0, z: -weaponConfig.speed },
             active: true,
             owner: 'player',
-            damage: weaponConfig.damage
+            damage: finalDamage
           });
           if (shakeRef.current) shakeRef.current.setIntensity(0.1);
        } else if (currentWeapon === WeaponType.SPREAD) {
@@ -137,7 +145,7 @@ const GameScene: React.FC<GameLogicProps> = ({
                 velocity: { x: angle, y: 0, z: -weaponConfig.speed },
                 active: true,
                 owner: 'player',
-                damage: weaponConfig.damage
+                damage: finalDamage
              });
           });
           if (shakeRef.current) shakeRef.current.setIntensity(0.2);
@@ -148,13 +156,13 @@ const GameScene: React.FC<GameLogicProps> = ({
              velocity: { x: 0, y: 0, z: -weaponConfig.speed },
              active: true,
              owner: 'player',
-             damage: weaponConfig.damage
+             damage: finalDamage
           });
           if (shakeRef.current) shakeRef.current.setIntensity(0.4);
        }
     }
 
-    // Boss Spawning Logic (Based on Level Config)
+    // Boss Spawning
     if (currentScore.current >= levelConfig.bossScoreThreshold && !bossRef.current) {
       bossRef.current = {
         id: 'BOSS',
@@ -171,7 +179,7 @@ const GameScene: React.FC<GameLogicProps> = ({
       enemiesRef.current = []; 
     }
 
-    // Enemy Spawning (Based on Level Config)
+    // Enemy Spawning
     if (!bossRef.current && frameCount.current % levelConfig.spawnRate === 0 && enemiesRef.current.length < MAX_ENEMIES) {
        const isFighter = Math.random() > 0.5;
        const startX = (Math.random() - 0.5) * viewport.width * 1.2;
@@ -188,6 +196,7 @@ const GameScene: React.FC<GameLogicProps> = ({
 
     // --- 3. Logic Updates ---
     
+    // Bullets
     const updateBullets = (bullets: Bullet[]) => {
         for (let i = bullets.length - 1; i >= 0; i--) {
             const b = bullets[i];
@@ -200,6 +209,7 @@ const GameScene: React.FC<GameLogicProps> = ({
     updateBullets(spreadBulletsRef.current);
     updateBullets(plasmaBulletsRef.current);
 
+    // Enemy Bullets
     for (let i = enemyBulletsRef.current.length - 1; i >= 0; i--) {
        const eb = enemyBulletsRef.current[i];
        eb.position.z += eb.velocity.z;
@@ -218,6 +228,28 @@ const GameScene: React.FC<GameLogicProps> = ({
        }
        if (eb.position.z > 10) enemyBulletsRef.current.splice(i, 1);
     }
+
+    // PowerUps Logic
+    for (let i = powerUpsRef.current.length - 1; i >= 0; i--) {
+        const p = powerUpsRef.current[i];
+        // Move towards camera
+        p.position.z += POWERUP_SPEED; 
+        
+        // Collision with player
+        const dist = Math.hypot(playerPos.current.x - p.position.x, playerPos.current.y - p.position.y, playerPos.current.z - p.position.z);
+        if (dist < 1.5) {
+            setWeaponLevel(lvl => Math.min(lvl + 1, MAX_WEAPON_LEVEL));
+            // Floating text or sound effect could go here
+            powerUpsRef.current.splice(i, 1);
+            continue;
+        }
+
+        // Despawn
+        if (p.position.z > 5) {
+            powerUpsRef.current.splice(i, 1);
+        }
+    }
+
 
     // Boss Interaction
     if (bossModelRef.current) {
@@ -238,7 +270,6 @@ const GameScene: React.FC<GameLogicProps> = ({
             if (boss.attackCooldown <= 0) {
                const startPos = { ...boss.position };
                const dirs = [-0.3, -0.1, 0.1, 0.3];
-               // Harder levels shoot more/faster
                if (currentLevelIndex >= 1) dirs.push(-0.4, 0.4); 
 
                dirs.forEach(d => {
@@ -274,7 +305,6 @@ const GameScene: React.FC<GameLogicProps> = ({
                     bullets.splice(j, 1);
                     
                     if (boss.health <= 0) {
-                        // LEVEL COMPLETE!
                         currentScore.current += 1000;
                         setScore(s => s + 1000);
                         bossRef.current = null;
@@ -323,6 +353,18 @@ const GameScene: React.FC<GameLogicProps> = ({
                 if (e.health <= 0) {
                    currentScore.current += (e.type === 'fighter' ? 150 : 50);
                    setScore(currentScore.current);
+                   
+                   // DROP POWERUP
+                   if (Math.random() < POWERUP_DROP_RATE) {
+                       powerUpsRef.current.push({
+                           id: Math.random().toString(),
+                           position: { x: e.position.x, y: e.position.y, z: e.position.z },
+                           velocity: { x: 0, y: 0, z: 0 },
+                           active: true,
+                           rotation: { x: Math.random(), y: Math.random() }
+                       });
+                   }
+
                    hit = true;
                 }
                 break; 
@@ -364,6 +406,7 @@ const GameScene: React.FC<GameLogicProps> = ({
     updateMesh(plasmaMeshRef.current, plasmaBulletsRef.current, 1, true);
     updateMesh(enemyBulletMeshRef.current, enemyBulletsRef.current);
 
+    // Render Enemies
     if (enemyFighterRef.current && enemyDroneRef.current) {
        let fIdx = 0;
        let dIdx = 0;
@@ -386,6 +429,18 @@ const GameScene: React.FC<GameLogicProps> = ({
        (enemyDroneRef.current.instanceMatrix as any).needsUpdate = true;
     }
 
+    // Render PowerUps
+    if (powerUpMeshRef.current) {
+        powerUpMeshRef.current.count = powerUpsRef.current.length;
+        powerUpsRef.current.forEach((p, i) => {
+            tempObj.position.set(p.position.x, p.position.y, p.position.z);
+            tempObj.rotation.set(time * 3 + p.rotation.x, time * 2 + p.rotation.y, 0);
+            tempObj.scale.set(1, 1, 1);
+            tempObj.updateMatrix();
+            powerUpMeshRef.current!.setMatrixAt(i, tempObj.matrix);
+        });
+        (powerUpMeshRef.current.instanceMatrix as any).needsUpdate = true;
+    }
   });
 
   return (
@@ -442,10 +497,21 @@ const GameScene: React.FC<GameLogicProps> = ({
          <meshStandardMaterial color="#fbbf24" roughness={0.1} metalness={0.9} emissive="#b45309" emissiveIntensity={0.8} />
        </instancedMesh>
 
+       {/* PowerUp Instanced Mesh - Cyan Crystals */}
+       <instancedMesh ref={powerUpMeshRef} args={[undefined, undefined, MAX_POWERUPS]}>
+         <octahedronGeometry args={[0.4]} />
+         <meshStandardMaterial 
+            color="#06b6d4" 
+            emissive="#0891b2" 
+            emissiveIntensity={2} 
+            toneMapped={false} 
+         />
+       </instancedMesh>
+
        <EffectComposer enableNormalPass={false}>
          <Bloom luminanceThreshold={0.2} mipmapBlur intensity={1.5} />
-         <Noise opacity={0.05 as any} />
-         <Vignette eskil={false} offset={0.1 as any} darkness={1.1} />
+         <Noise premultiply />
+         <Vignette eskil={false} offset={0.1} darkness={1.1} />
        </EffectComposer>
     </>
   );

@@ -2,6 +2,7 @@
 import React from 'react';
 import { GameState, WeaponType, LevelConfig } from '../types';
 import { Crosshair, Play, RotateCcw, ShieldAlert, Trophy, Skull, Pause, Zap, Target, Hexagon, ArrowRight } from 'lucide-react';
+import { MAX_WEAPON_LEVEL } from '../constants';
 
 interface UIProps {
   gameState: GameState;
@@ -10,6 +11,7 @@ interface UIProps {
   bossHealth: number;
   maxBossHealth: number;
   currentWeapon: WeaponType;
+  weaponLevel: number;
   levelConfig: LevelConfig;
   onStart: () => void;
   onRestart: () => void;
@@ -18,7 +20,7 @@ interface UIProps {
 }
 
 export const UI: React.FC<UIProps> = ({ 
-  gameState, score, lives, bossHealth, maxBossHealth, currentWeapon, levelConfig,
+  gameState, score, lives, bossHealth, maxBossHealth, currentWeapon, weaponLevel, levelConfig,
   onStart, onRestart, onResume, onNextLevel 
 }) => {
   
@@ -143,7 +145,7 @@ export const UI: React.FC<UIProps> = ({
           </div>
         )}
         
-        {/* Lives & Pause Button (Visual only) */}
+        {/* Lives & Pause Button */}
         <div className="flex flex-col items-end gap-2">
            <div className="flex items-center gap-4">
               <div className="flex gap-1">
@@ -166,7 +168,20 @@ export const UI: React.FC<UIProps> = ({
       </div>
 
       {/* Bottom - Weapons HUD */}
-      <div className="self-center mt-auto mb-4">
+      <div className="self-center mt-auto mb-4 flex flex-col items-center gap-2">
+         {/* Power Level Bar */}
+         <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-cyan-400 tracking-wider">POWER LVL</span>
+            <div className="flex gap-0.5">
+               {[...Array(MAX_WEAPON_LEVEL)].map((_, i) => (
+                  <div 
+                    key={i} 
+                    className={`w-3 h-1.5 ${i < weaponLevel ? 'bg-cyan-400 shadow-[0_0_5px_cyan]' : 'bg-gray-800'}`}
+                  />
+               ))}
+            </div>
+         </div>
+
          <div className="flex items-center gap-4 bg-black/40 backdrop-blur-md px-6 py-3 rounded-full border border-white/10">
             <div className={`flex flex-col items-center gap-1 transition-all duration-300 ${currentWeapon === WeaponType.BLASTER ? 'text-blue-400 scale-110' : 'text-gray-500 scale-90'}`}>
                <Zap className="w-6 h-6" />
